@@ -1,0 +1,74 @@
+﻿@model OSINTCompositeViewModel
+
+@{
+    ViewData["Title"] = "OSINT Request";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-3">OSINT Request</h2>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger">
+            <strong>Errors:</strong>
+            <ul>
+                @foreach (var key in ViewData.ModelState.Keys)
+                {
+                    foreach (var error in ViewData.ModelState[key].Errors)
+                    {
+                        <li>@error.ErrorMessage</li>
+                    }
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-body">
+            <form asp-controller="OSINT" asp-action="Index" method="post">
+                <div class="form-group mb-3">
+                    <label asp-for="Request.token" class="form-label">Token:</label>
+                    <input asp-for="Request.token" class="form-control" placeholder="Enter your token" />
+                    <span asp-validation-for="Request.token" class="text-danger"></span>
+                </div>
+                <div class="form-group mb-3">
+                    <label asp-for="Request.request" class="form-label">Request:</label>
+                    <input asp-for="Request.request" class="form-control" placeholder="Enter your request" />
+                    <span asp-validation-for="Request.request" class="text-danger"></span>
+                </div>
+                <div class="form-group mb-3">
+                    <label asp-for="Request.limit" class="form-label">Limit:</label>
+                    <input asp-for="Request.limit" class="form-control" type="number" placeholder="Set a limit" />
+                    <span asp-validation-for="Request.limit" class="text-danger"></span>
+                </div>
+                <div class="form-group mb-3">
+                    <label asp-for="Request.lang" class="form-label">Language:</label>
+                    <select asp-for="Request.lang" class="form-select">
+                        <option value="">--Select Language--</option>
+                        @foreach (var lang in Model.LanguageOptions)
+                        {
+                            <option value="@lang.Key">@lang.Value</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Request.lang" class="text-danger"></span>
+                </div>
+                <button type="submit" class="btn btn-primary">Send Request</button>
+            </form>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.Response?.JsonResponse))
+    {
+        <div class="card mt-3">
+            <div class="card-body">
+                <label for="jsonResponse" class="form-label">Response JSON:</label>
+                <textarea id="jsonResponse" class="form-control" rows="10" readonly>
+                    @Model.Response.JsonResponse
+                    </textarea>
+            </div>
+        </div>
+        <form asp-controller="OSINT" asp-action="DownloadResponse" method="get" class="mt-3">
+            <button type="submit" class="btn btn-secondary">Download JSON</button>
+        </form>
+    }
+</div>
