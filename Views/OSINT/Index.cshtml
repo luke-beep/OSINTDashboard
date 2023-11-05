@@ -19,9 +19,13 @@
                     <ul>
                         @foreach (var key in ViewData.ModelState.Keys)
                         {
-                            foreach (var error in ViewData.ModelState[key]?.Errors)
+                            var modelErrorCollection = ViewData.ModelState[key]?.Errors;
+                            if (modelErrorCollection != null)
                             {
-                                <li>@error.ErrorMessage</li>
+                                foreach (var error in modelErrorCollection)
+                                {
+                                    <li>@error.ErrorMessage</li>
+                                }
                             }
                         }
                     </ul>
@@ -31,181 +35,188 @@
             <div class="card">
                 <div class="card-body">
                     <form asp-controller="OSINT" asp-action="Index" method="post">
+                        @if (Model.ShowTokenField)
+                        {
+                            <div class="form-group mb-3">
+                                <label asp-for="Request!.token" class="form-label">Token:</label>
+                                <input asp-for="Request!.token" class="form-control text-secondary" placeholder="Enter your token" value="@Model.Request?.token"/>
+                                <span asp-validation-for="Request!.token" class="text-danger"></span>
+                            </div>
+                        }
+                        else
+                        {
+                            <input asp-for="Request!.token" type="hidden" value="@Model.Request?.token"/>
+                        }
                         <div class="form-group mb-3">
-                            <label asp-for="Request.token" class="form-label">Token:</label>
-                            <input asp-for="Request.token" class="form-control text-secondary" placeholder="Enter your token" value="@Model.Request?.token" />
-                            <span asp-validation-for="Request.token" class="text-danger"></span>
+                            <label asp-for="Request!.request" class="form-label">Request:</label>
+                            <input asp-for="Request!.request" class="form-control text-secondary" placeholder="Enter your request" value="@Model.Request?.request"/>
+                            <span asp-validation-for="Request!.request" class="text-danger"></span>
                         </div>
                         <div class="form-group mb-3">
-                            <label asp-for="Request.request" class="form-label">Request:</label>
-                            <input asp-for="Request.request" class="form-control text-secondary" placeholder="Enter your request" value="@Model.Request?.request" />
-                            <span asp-validation-for="Request.request" class="text-danger"></span>
+                            <label asp-for="Request!.limit" class="form-label">Limit:</label>
+                            <input asp-for="Request!.limit" class="form-control text-secondary" type="number" placeholder="Set a limit" value="@Model.Request?.limit"/>
+                            <span asp-validation-for="Request!.limit" class="text-danger"></span>
                         </div>
                         <div class="form-group mb-3">
-                            <label asp-for="Request.limit" class="form-label">Limit:</label>
-                            <input asp-for="Request.limit" class="form-control text-secondary" type="number" placeholder="Set a limit" value="@Model.Request?.limit" />
-                            <span asp-validation-for="Request.limit" class="text-danger"></span>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label asp-for="Request.lang" class="form-label">Language:</label>
-                            <select asp-for="Request.lang" class="form-select text-secondary">
+                            <label asp-for="Request!.lang" class="form-label">Language:</label>
+                            <select asp-for="Request!.lang" class="form-select text-secondary">
                                 <option value="">Select Language</option>
                                 @foreach (var lang in Model.LanguageOptions)
                                 {
                                     <option value="@lang.Key">@lang.Value</option>
                                 }
                             </select>
-                            <span asp-validation-for="Request.lang" class="text-danger"></span>
+                            <span asp-validation-for="Request!.lang" class="text-danger"></span>
                         </div>
                         <button type="submit" class="btn btn-secondary bg-secondary border-0 w-auto">Scan Now</button>
                     </form>
-                    @if (!string.IsNullOrEmpty(Model.Response?.JsonResponse))
-                    {
-                        <form asp-controller="OSINT" asp-action="DownloadResponse" method="get" class="mt-3">
-                            <button type="submit" class="btn btn-secondary bg-secondary border-0 w-auto">Download JSON</button>
-                        </form>
-                    }
                 </div>
             </div>
-        </div>
+            @if (!string.IsNullOrEmpty(Model.Response?.JsonResponse))
+            {
+                @if (Model.SearchResult != null && Model.SearchResult.List.Any())
+                {
+                    <div>
+                        <h3 class="text-center mt-4 mb-4">Search Summary</h3>
+                        <div class="list-group">
+                            <div class="list-group-item">
+                                <p>Number of Databases Searched: @Model.SearchResult.NumOfDatabase</p>
+                                <p>Time: @Model.SearchResult.SearchTime</p>
+                                <p>Price: @Model.SearchResult.Price</p>
+                                <p>Free Requests Left: @Model.SearchResult.FreeRequestsLeft</p>
+                            </div>
+                        </div>
+                    </div>
 
+                    <div class="accordion accordion-flush mt-2" id="accordionFlushExample">
+                        @if (Model.SearchResult.List.Any())
+                        {
+                            var itemId = 0;
+                            foreach (var item in Model.SearchResult.List)
+                            {
+                                <div class="accordion-item border-0">
+                                    <h2 class="accordion-header" id="flush-heading-@itemId">
+                                        <button class="accordion-button collapsed bg-secondary rounded-1 mb-2 mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapse-@itemId" aria-expanded="false" aria-controls="flush-collapse-@itemId">
+                                            @item.Key
+                                        </button>
+                                    </h2>
+                                    <div id="flush-collapse-@itemId" class="accordion-collapse collapse" aria-labelledby="flush-heading-@itemId" data-bs-parent="#accordionFlushExample">
+                                        <div class="accordion-body">
+                                            <div class="list-group">
+                                                <div class="list-group-item">
+                                                    <p>Number of Results: @item.Value.NumOfResults</p>
+                                                    <p>Info Leak: @item.Value.InfoLeak</p>
+                                                </div>
+
+
+                                                @if (Model.SearchResult.List != null && Model.SearchResult.List.Any())
+                                                {
+                                                    @foreach (var dataItem in item.Value.Data)
+                                                    {
+                                                        <div class="list-group-item">
+                                                            @foreach (var kvp in dataItem)
+                                                            {
+                                                                <div class="mb-2">
+                                                                    <strong>@kvp.Key:</strong>
+                                                                    @if (kvp.Value is JsonElement { ValueKind: JsonValueKind.Array } element)
+                                                                    {
+                                                                        @foreach (var val in element.EnumerateArray())
+                                                                        {
+                                                                            <span class="d-block">@val.ToString()</span>
+                                                                        }
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="d-block">@kvp.Value.ToString()</span>
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <p>No detailed data available.</p>
+                                                }
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                itemId++;
+                            }
+                        }
+                        else
+                        {
+                            <p>No results found.</p>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p>No search results to display.</p>
+                }
+            }
+        </div>
         <div class="col-md-4">
-            <h2 class="mb-3 text-center">Search History</h2>
+            <div class="d-flex align-items-center justify-content-center">
+                <h2 class="me-4">Search History</h2>
+                <form asp-controller="OSINT" asp-action="ClearHistory" method="get" class="me-2">
+                    <button type="submit" class="btn btn-secondary bg-secondary border-0">Clear History</button>
+                </form>
+            </div>
             @if (Context.Session.GetObjectFromJson<List<HistoryViewModel>>("SearchHistory") is { } historyList && historyList.Any())
             {
-                <div class="card mt-4 border-0">
+                <div class="card border-0">
                     <div class="card-body">
                         <ul class="list-group">
-                            @foreach (var history in historyList)
-                            {
-                                <li class="list-group-item">
-                                    <p>
-                                    <strong>
-                                        Token:
-                                        </strong>@history.Token <br />
-                                    </p>
-                                <p><strong>
-                                        Request:
-                                    </strong>@history.Request <br /></p>
-                                <p><strong>
-                                        Limit:
-                                    </strong>@history.Limit <br/></p>
-                                <p><strong>
-                                        Language:
-                                    </strong>@history.Language <br/></p>
-                                    <p>
-                                        <strong>
-                                        Time:
-                                    </strong>@history.SearchTime.ToString("u") <br/></p>
-                                    <form asp-action="DownloadJsonResponse" asp-route-id="@history.Id" method="post">
-                                        <button type="submit" class="btn btn-secondary bg-secondary border-0">Download JSON</button>
-                                    </form>
-                                    <form asp-controller="OSINT" asp-action="LoadHistoryItem" asp-route-id="@history.Id" method="post">
-                                        <button type="submit" class="btn btn-secondary bg-secondary border-0 mt-2">Load</button>
-                                    </form>
-                                </li>
-                            }
+                            <div class="accordion accordion-flush" id="accordionExample">
+                                @foreach (var history in historyList)
+                                {
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header border-0" id="accordion-@history.Id">
+                                            <button class="accordion-button collapsed rounded-1 bg-transparent border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne-@history.Id" aria-expanded="False" aria-controls="collapseOne-@history.Id">
+                                                @history.Request - @history.SearchTime.ToString("u")
+                                            </button>
+                                        </h2>
+                                        <div id="collapseOne-@history.Id" class="accordion-collapse collapse" data-bs-parent="#accordionExample" aria-labelledby="accordion-@history.Id">
+                                            <div class="accordion-body">
+                                                <li class="list-group-item border-0">
+                                                    <div class="form-floating mb-3 mt-2">
+                                                        <input type="text" class="form-control" id="floatingRequest" placeholder="Request" value="@history.Request" disabled>
+                                                        <label for="floatingRequest" class="text-white">Request</label>
+                                                    </div>
+
+                                                    <div class="form-floating mb-3">
+                                                        <input type="text" class="form-control" id="floatingLimit" placeholder="Limit" value="@history.Limit" disabled>
+                                                        <label for="floatingLimit" class="text-white">Limit</label>
+                                                    </div>
+
+                                                    <div class="form-floating mb-3">
+                                                        <input type="text" class="form-control" id="floatingLanguage" placeholder="Language" value="@history.Language" disabled>
+                                                        <label for="floatingLanguage" class="text-white">Language</label>
+                                                    </div>
+
+                                                    <div class="form-floating mb-3">
+                                                        <input type="text" class="form-control" id="floatingTime" placeholder="Time" value="@history.SearchTime.ToString("u")" disabled>
+                                                        <label for="floatingTime" class="text-white">Time</label>
+                                                    </div>
+                                                    <form asp-action="DownloadJsonResponse" asp-route-id="@history.Id" method="post">
+                                                        <button type="submit" class="btn btn-secondary bg-secondary border-0 mb-3">Download JSON</button>
+                                                    </form>
+                                                    <form asp-controller="OSINT" asp-action="LoadHistoryItem" asp-route-id="@history.Id" method="post">
+                                                        <button type="submit" class="btn btn-secondary bg-secondary border-0 mb-2">Load</button>
+                                                    </form>
+                                                </li>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                         </ul>
                     </div>
                 </div>
             }
         </div>
-
-
-        @if (!string.IsNullOrEmpty(Model.Response?.JsonResponse))
-        {
-            @if (Model.SearchResult != null && Model.SearchResult.List.Any())
-            {
-                <div>
-                    <h3 class="text-center mt-4 mb-4">Search Summary</h3>
-                    <div class="list-group">
-                        <div class="list-group-item">
-                            <p>
-                                <strong>Number of Databases Searched: </strong>@Model.SearchResult.NumOfDatabase
-                            </p>
-                            <p><strong>Time: </strong>@Model.SearchResult.SearchTime seconds</p>
-                            <p>
-                                <strong>Price: </strong>@Model.SearchResult.Price
-                            </p>
-                            <p>
-                                <strong>Free Requests Left: </strong>@Model.SearchResult.FreeRequestsLeft
-                            </p>
-                            <p>
-                                <strong>Time: </strong> @DateTime.Now.ToString(CultureInfo.InvariantCulture)
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="accordion accordion-flush mt-2" id="accordionFlushExample">
-                    @if (Model.SearchResult.List.Any())
-                    {
-                        var itemId = 0;
-                        foreach (var item in Model.SearchResult.List)
-                        {
-                            <div class="accordion-item border-0">
-                                <h2 class="accordion-header" id="flush-heading-@itemId">
-                                    <button class="accordion-button collapsed bg-secondary rounded-1 mb-2 mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapse-@itemId" aria-expanded="false" aria-controls="flush-collapse-@itemId">
-                                        @item.Key
-                                    </button>
-                                </h2>
-                                <div id="flush-collapse-@itemId" class="accordion-collapse collapse" aria-labelledby="flush-heading-@itemId" data-bs-parent="#accordionFlushExample">
-                                    <div class="accordion-body">
-                                        <div class="list-group">
-                                            <div class="list-group-item">
-                                                <p>Number of Results: @item.Value.NumOfResults</p>
-                                                <p>Info Leak: @item.Value.InfoLeak</p>
-
-                                            </div>
-
-
-                                            @if (Model.SearchResult.List != null && Model.SearchResult.List.Any())
-                                            {
-                                                @foreach (var dataItem in item.Value.Data)
-                                                {
-                                                    <div class="list-group-item">
-                                                        @foreach (var kvp in dataItem)
-                                                        {
-                                                            <div class="mb-2">
-                                                                <strong>@kvp.Key:</strong>
-                                                                @if (kvp.Value is JsonElement {ValueKind: JsonValueKind.Array } element)
-                                                                {
-                                                                    @foreach (var val in element.EnumerateArray())
-                                                                    {
-                                                                        <span class="d-block">@val.ToString()</span>
-                                                                    }
-                                                                }
-                                                                else
-                                                                {
-                                                                    <span class="d-block">@kvp.Value.ToString()</span>
-                                                                }
-                                                            </div>
-                                                        }
-                                                    </div>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <p>No detailed data available.</p>
-                                            }
-                                        </div>
-
-                                    </div>
-                                </div>
-                            </div>
-                            itemId++;
-                        }
-                    }
-                    else
-                    {
-                        <p>No results found.</p>
-                    }
-                </div>
-            }
-            else
-            {
-                <p>No search results to display.</p>
-            }
-        }
     </div>
 </div>

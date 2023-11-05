@@ -15,6 +15,8 @@ public class OSINTController : Controller
     private const string APIUri = "https://server.leakosint.com/";
     private const string ContentType = "application/json";
 
+    private const string AuthToken = "AuthToken";
+
     public OSINTController(ILogger<OSINTController> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
@@ -24,7 +26,9 @@ public class OSINTController : Controller
     [HttpGet]
     public IActionResult Index()
     {
-        var compositeModel = InitializeCompositeViewModel();
+        string? token = LoadTokenFromCookie().Result;
+
+        var compositeModel = InitializeCompositeViewModel(token);
         LoadSearchHistory(compositeModel);
         _logger.LogInformation("Index page visited");
         return View(compositeModel);
@@ -59,13 +63,13 @@ public class OSINTController : Controller
     {
         var searchHistoryList = HttpContext.Session.GetObjectFromJson<List<HistoryViewModel>>("SearchHistory");
         var historyItem = searchHistoryList?.FirstOrDefault(h => h.Id == id);
-
+        var token = await LoadTokenFromCookie();
         if (historyItem == null)
         {
             return NotFound();
         }
 
-        var compositeViewModel = InitializeCompositeViewModel();
+        var compositeViewModel = InitializeCompositeViewModel(token);
         compositeViewModel.Request = new RequestViewModel
         {
             token = historyItem.Token,
@@ -85,6 +89,41 @@ public class OSINTController : Controller
 
         return View("Index", compositeViewModel);
     }
+
+    public Task<IActionResult> ClearHistory()
+    {
+        var token = LoadTokenFromCookie().Result;
+        HttpContext.Session.Remove("SearchHistory");
+        var compositeViewModel = InitializeCompositeViewModel(token);
+        return Task.FromResult<IActionResult>(View("Index", compositeViewModel));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveToken(string token)
+    {
+        if (string.IsNullOrEmpty(token)) return View("Index");
+        await SaveTokenInCookie(token);
+        return View("Index", InitializeCompositeViewModel(token));
+
+    }
+
+    public Task SaveTokenInCookie(string token)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Expires = DateTime.Now.AddDays(7)
+        };
+        Response.Cookies.Append(AuthToken, token, cookieOptions);
+        return Task.CompletedTask;
+    }
+
+    public Task<string?> LoadTokenFromCookie()
+    {
+        var token = Request.Cookies[AuthToken];
+        return Task.FromResult(token);
+    }
+    
 
     private Task<bool> HandleResponseFromString(string jsonResponse, CompositeViewModel compositeViewModel)
     {
@@ -135,7 +174,8 @@ public class OSINTController : Controller
     [HttpPost]
     public async Task<IActionResult> Index(CompositeViewModel model)
     {
-        var compositeViewModel = InitializeCompositeViewModel();
+        var token = await LoadTokenFromCookie();
+        var compositeViewModel = InitializeCompositeViewModel(token);
         if (!ModelState.IsValid) return View(compositeViewModel);
         try
         {
@@ -148,15 +188,25 @@ public class OSINTController : Controller
         return View(compositeViewModel);
     }
 
-    private static CompositeViewModel InitializeCompositeViewModel()
+    private static CompositeViewModel InitializeCompositeViewModel(string? token = null)
     {
-        return new CompositeViewModel
+        var viewModel = new CompositeViewModel
         {
             Request = new RequestViewModel(),
             Response = new RespondViewModel(),
             SearchResult = new SearchResultViewModel(),
-            LanguageOptions = GetLanguageOptions()
+            History = new List<HistoryViewModel>(),
+            Authentication = new AuthenticationViewModel(),
+            LanguageOptions = GetLanguageOptions(),
+            ShowTokenField = string.IsNullOrEmpty(token)
         };
+
+        if (token != null)
+        {
+            viewModel.Request.token = token;
+        }
+
+        return viewModel;
     }
     private async Task SendRequestAndUpdateViewModel(CompositeViewModel model, CompositeViewModel compositeViewModel)
     {
@@ -260,6 +310,20 @@ public class OSINTController : Controller
             ModelState.AddModelError("", "An unexpected error occurred.");
         }
     }
+
+    [HttpPost]
+    public IActionResult LogOut()
+    {
+        var cookieOptions = new CookieOptions
+        {
+            Expires = DateTime.Now.AddDays(-1)
+        };
+        Response.Cookies.Append(AuthToken, "", cookieOptions);
+        HttpContext.Session.Clear();
+        _logger.LogInformation("User signed out.");
+        return RedirectToAction("Index");
+    }
+
     private static Dictionary<string, string> GetLanguageOptions()
     {
         return new Dictionary<string, string>
